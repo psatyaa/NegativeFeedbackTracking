@@ -1,0 +1,373 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "twitter_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "twitter"
+    },
+    "twitter_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "psatyaa"
+    },
+    "cognitiveservicestextanalytics_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "cognitiveservicestextanalytics"
+    },
+    "cognitiveservicestextanalytics_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "SentimentAnalyzer"
+    },
+    "cognitiveservicestextanalytics_1_apiKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Cognitive Services Account Key"
+      }
+    },
+    "cognitiveservicestextanalytics_1_siteUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Root site url (Example: https://westus.api.cognitive.microsoft.com ).If not specified site url will be defaulted to 'https://westus.api.cognitive.microsoft.com'."
+      },
+      "defaultValue": "https://westcentralus.api.cognitive.microsoft.com/text/analytics"
+    },
+    "outlook_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "outlook"
+    },
+    "outlook_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "satyaa.prakash@outlook.com"
+    },
+    "salesforce_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "salesforce"
+    },
+    "salesforce_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "satyaa.prakash@gmail.com"
+    },
+    "salesforce_1_token:LoginUri": {
+      "type": "string",
+      "metadata": {
+        "description": "The Salesforce Login URI. For Production, leave blank or use https://login.salesforce.com"
+      },
+      "defaultValue": "https://login.salesforce.com"
+    },
+    "salesforce_1_salesforceApiVersion": {
+      "type": "string",
+      "metadata": {
+        "description": "The Salesforce API Version. For default, leave blank or use v34.0"
+      },
+      "defaultValue": "v43"
+    },
+    "onedrive_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "onedrive"
+    },
+    "onedrive_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "satyaa.prakash@outlook.com"
+    },
+    "LogicAppLocation": {
+      "type": "string",
+      "minLength": 1,
+      "allowedValues": [
+        "[resourceGroup().location]",
+        "eastasia",
+        "southeastasia",
+        "centralus",
+        "eastus",
+        "eastus2",
+        "westus",
+        "northcentralus",
+        "southcentralus",
+        "northeurope",
+        "westeurope",
+        "japanwest",
+        "japaneast",
+        "brazilsouth",
+        "australiaeast",
+        "australiasoutheast",
+        "southindia",
+        "centralindia",
+        "westindia",
+        "canadacentral",
+        "canadaeast",
+        "uksouth",
+        "ukwest",
+        "westcentralus",
+        "westus2"
+      ],
+      "defaultValue": "eastus"
+    },
+    "LogicAppName": {
+      "type": "string",
+      "minLength": 1,
+      "defaultValue": "ProcessNegativeFeedback"
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "Condition": {
+              "type": "If",
+              "expression": {
+                "and": [
+                  {
+                    "less": [
+                      "@body('Detect_Sentiment')?['score']",
+                      0.7
+                    ]
+                  }
+                ]
+              },
+              "actions": {
+                "Create_record": {
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['salesforce']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "body": {
+                      "Status": "New",
+                      "Origin": "Twitter",
+                      "Subject": "Twitter Feed Negative Feedback",
+                      "Priority": "High",
+                      "Description": "A new Case has been Created based on Tweet @{triggerBody()?['TweetText']} Which has Sentiment Score on @{body('Detect_Sentiment')?['score']}. Tweet has sent using handle@{triggerBody()?['UserDetails']?['UserName']} by @{triggerBody()?['OriginalTweet']?['UserDetails']?['FullName']} at @{triggerBody()?['OriginalTweet']?['UserDetails']?['Location']}"
+                    },
+                    "path": "/v2/datasets/default/tables/@{encodeURIComponent(encodeURIComponent('Case'))}/items"
+                  },
+                  "runAfter": {}
+                }
+              },
+              "runAfter": {
+                "Detect_Sentiment": [
+                  "Succeeded"
+                ]
+              },
+              "else": {
+                "actions": {
+                  "Create_file": {
+                    "type": "ApiConnection",
+                    "inputs": {
+                      "host": {
+                        "connection": {
+                          "name": "@parameters('$connections')['onedrive']['connectionId']"
+                        }
+                      },
+                      "method": "post",
+                      "body": "Twitter Feedback Log :\nNew File Created By Logic App with Details of Tweet By @{triggerBody()?['UserDetails']?['UserName']} with content as @{triggerBody()?['TweetText']}\nat Location @{triggerBody()?['UserDetails']?['Location']}  User Description is @{triggerBody()?['UserDetails']?['Description']}.\n\nThe above Tweet is Retweeted @{triggerBody()?['RetweetCount']}.\n\nSentiment Score is @{body('Detect_Sentiment')?['score']} as per AI analysis.\n\nCoffee Cloud Team.",
+                      "path": "/datasets/default/files",
+                      "queries": {
+                        "folderPath": "/",
+                        "name": "Twitter@{triggerBody()?['CreatedAtIso']}.msg"
+                      }
+                    },
+                    "runAfter": {},
+                    "runtimeConfiguration": {
+                      "contentTransfer": {
+                        "transferMode": "Chunked"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "Detect_Sentiment": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['cognitiveservicestextanalytics']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "body": {
+                  "text": "@triggerBody()?['TweetText']",
+                  "language": "en"
+                },
+                "path": "/sentiment"
+              },
+              "runAfter": {}
+            },
+            "Send_an_email_(V2)": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['outlook']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "body": {
+                  "To": "Satya.Prakash@fujitsu.com",
+                  "Subject": "Tweet Sentiment",
+                  "Body": "<p><span style=\"font-size: 14px\">Here is a twitter feed:</span><span style=\"font-size: 14px\"><strong><br>\n</strong></span><br>\n&nbsp;&nbsp;@{triggerBody()?['TweetText']} by &nbsp;@{triggerBody()?['TweetedBy']}.<br>\n<br>\n<br>\nThe Sentiment for above Tweet is @{body('Detect_Sentiment')?['score']}<br>\n@{body('Detect_Sentiment')?['id']}<br>\n<br>\nA Case is already opened in Salesforce with Case ID @{body('Create_record')?['CaseNumber']}<br>\nand Description is : <br>\n<br>\n@{body('Create_record')?['Description']}<br>\n<br>\nThanks.<br>\nCloud Coffee Team<br>\n<br>\n</p>"
+                },
+                "path": "/v2/Mail"
+              },
+              "runAfter": {
+                "Condition": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
+          "triggers": {
+            "When_a_new_tweet_is_posted": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['twitter']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/onnewtweet",
+                "queries": {
+                  "searchQuery": "#negativefeedback"
+                }
+              },
+              "recurrence": {
+                "frequency": "Minute",
+                "interval": 3
+              },
+              "splitOn": "@triggerBody()?['value']"
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "salesforce": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'salesforce')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('salesforce_1_Connection_Name'))]",
+                "connectionName": "[parameters('salesforce_1_Connection_Name')]"
+              },
+              "onedrive": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'onedrive')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('onedrive_1_Connection_Name'))]",
+                "connectionName": "[parameters('onedrive_1_Connection_Name')]"
+              },
+              "cognitiveservicestextanalytics": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'cognitiveservicestextanalytics')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicestextanalytics_1_Connection_Name'))]",
+                "connectionName": "[parameters('cognitiveservicestextanalytics_1_Connection_Name')]"
+              },
+              "outlook": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'outlook')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('outlook_1_Connection_Name'))]",
+                "connectionName": "[parameters('outlook_1_Connection_Name')]"
+              },
+              "twitter": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'twitter')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('twitter_1_Connection_Name'))]",
+                "connectionName": "[parameters('twitter_1_Connection_Name')]"
+              }
+            }
+          }
+        }
+      },
+      "name": "[parameters('LogicAppName')]",
+      "type": "Microsoft.Logic/workflows",
+      "location": "[parameters('LogicAppLocation')]",
+      "tags": {
+        "displayName": "LogicApp"
+      },
+      "apiVersion": "2016-06-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', parameters('salesforce_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('onedrive_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicestextanalytics_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('outlook_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('twitter_1_Connection_Name'))]"
+      ]
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('twitter_1_Connection_Name')]",
+      "location": "eastus",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'twitter')]"
+        },
+        "displayName": "[parameters('twitter_1_Connection_DisplayName')]"
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('cognitiveservicestextanalytics_1_Connection_Name')]",
+      "location": "eastus",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'cognitiveservicestextanalytics')]"
+        },
+        "displayName": "[parameters('cognitiveservicestextanalytics_1_Connection_DisplayName')]",
+        "parameterValues": {
+          "apiKey": "[parameters('cognitiveservicestextanalytics_1_apiKey')]",
+          "siteUrl": "[parameters('cognitiveservicestextanalytics_1_siteUrl')]"
+        }
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('outlook_1_Connection_Name')]",
+      "location": "eastus",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'outlook')]"
+        },
+        "displayName": "[parameters('outlook_1_Connection_DisplayName')]"
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('salesforce_1_Connection_Name')]",
+      "location": "eastus",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'salesforce')]"
+        },
+        "displayName": "[parameters('salesforce_1_Connection_DisplayName')]",
+        "nonSecretParameterValues": {
+          "token:LoginUri": "[parameters('salesforce_1_token:LoginUri')]",
+          "salesforceApiVersion": "[parameters('salesforce_1_salesforceApiVersion')]"
+        }
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('onedrive_1_Connection_Name')]",
+      "location": "eastus",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'onedrive')]"
+        },
+        "displayName": "[parameters('onedrive_1_Connection_DisplayName')]"
+      }
+    }
+  ],
+  "outputs": {}
+}
