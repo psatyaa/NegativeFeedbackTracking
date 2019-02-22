@@ -124,6 +124,12 @@
                       "@body('Detect_Sentiment')?['score']",
                       0.7
                     ]
+                  },
+                  {
+                    "greater": [
+                      "@triggerBody()?['RetweetCount']",
+                      0
+                    ]
                   }
                 ]
               },
@@ -153,33 +159,6 @@
                 "Detect_Sentiment": [
                   "Succeeded"
                 ]
-              },
-              "else": {
-                "actions": {
-                  "Create_file": {
-                    "type": "ApiConnection",
-                    "inputs": {
-                      "host": {
-                        "connection": {
-                          "name": "@parameters('$connections')['onedrive']['connectionId']"
-                        }
-                      },
-                      "method": "post",
-                      "body": "Twitter Feedback Log :\nNew File Created By Logic App with Details of Tweet By @{triggerBody()?['UserDetails']?['UserName']} with content as @{triggerBody()?['TweetText']}\nat Location @{triggerBody()?['UserDetails']?['Location']}  User Description is @{triggerBody()?['UserDetails']?['Description']}.\n\nThe above Tweet is Retweeted @{triggerBody()?['RetweetCount']}.\n\nSentiment Score is @{body('Detect_Sentiment')?['score']} as per AI analysis.\n\nCoffee Cloud Team.",
-                      "path": "/datasets/default/files",
-                      "queries": {
-                        "folderPath": "/",
-                        "name": "Twitter@{triggerBody()?['CreatedAtIso']}.msg"
-                      }
-                    },
-                    "runAfter": {},
-                    "runtimeConfiguration": {
-                      "contentTransfer": {
-                        "transferMode": "Chunked"
-                      }
-                    }
-                  }
-                }
               }
             },
             "Detect_Sentiment": {
@@ -257,27 +236,22 @@
           "$connections": {
             "value": {
               "salesforce": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'salesforce')]",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('LogicAppLocation'), '/managedApis/', 'salesforce')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('salesforce_1_Connection_Name'))]",
                 "connectionName": "[parameters('salesforce_1_Connection_Name')]"
               },
-              "onedrive": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'onedrive')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('onedrive_1_Connection_Name'))]",
-                "connectionName": "[parameters('onedrive_1_Connection_Name')]"
-              },
               "cognitiveservicestextanalytics": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'cognitiveservicestextanalytics')]",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('LogicAppLocation'), '/managedApis/', 'cognitiveservicestextanalytics')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicestextanalytics_1_Connection_Name'))]",
                 "connectionName": "[parameters('cognitiveservicestextanalytics_1_Connection_Name')]"
               },
               "outlook": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'outlook')]",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('LogicAppLocation'), '/managedApis/', 'outlook')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('outlook_1_Connection_Name'))]",
                 "connectionName": "[parameters('outlook_1_Connection_Name')]"
               },
               "twitter": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', 'eastus', '/managedApis/', 'twitter')]",
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('LogicAppLocation'), '/managedApis/', 'twitter')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('twitter_1_Connection_Name'))]",
                 "connectionName": "[parameters('twitter_1_Connection_Name')]"
               }
@@ -294,7 +268,6 @@
       "apiVersion": "2016-06-01",
       "dependsOn": [
         "[resourceId('Microsoft.Web/connections', parameters('salesforce_1_Connection_Name'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('onedrive_1_Connection_Name'))]",
         "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicestextanalytics_1_Connection_Name'))]",
         "[resourceId('Microsoft.Web/connections', parameters('outlook_1_Connection_Name'))]",
         "[resourceId('Microsoft.Web/connections', parameters('twitter_1_Connection_Name'))]"
